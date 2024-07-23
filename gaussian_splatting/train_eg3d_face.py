@@ -48,7 +48,14 @@ def training(opt, pipe, saving_iterations, eg3d_dir):
 
         # Render GAN
         fov_deg = np.random.rand() * 10 + 8
-        extrinsic = UniformCameraPoseSampler.sample(horizontal_stddev=math.pi/2, vertical_stddev=math.pi/2, radius=2.7, device="cuda")
+        lookat_position = torch.tensor([0, 0, np.random.rand() * 0.1], device="cuda")
+        extrinsic = UniformCameraPoseSampler.sample(
+            horizontal_stddev=math.pi/2,
+            vertical_stddev=math.pi/2,
+            radius=2.7,
+            device="cuda",
+            lookat_position=lookat_position
+        )
         viewpoint_cam, gt_image = scene.get_camera_and_target(fov_deg=fov_deg, extrinsic=extrinsic)
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 

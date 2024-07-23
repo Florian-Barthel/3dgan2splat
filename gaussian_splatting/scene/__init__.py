@@ -31,7 +31,7 @@ class SceneEG3D:
         c = self.eg3d_model.eg3d_cam(extrinsic, fov)
         w = self.get_w(c)
         pos, colors, opacity = self.eg3d_model.get_pos_color_opacity(w, extrinsic, fov, num_gaussians_per_axis=100)
-        keep_filter = (opacity > 0.5).squeeze(1)
+        keep_filter = (opacity > 0.3).squeeze(1)
         self.gaussians.create_from_pos_col(positions=pos[keep_filter], colors=colors[keep_filter])
 
     def get_camera_and_target(self, fov_deg, extrinsic, size=512):
