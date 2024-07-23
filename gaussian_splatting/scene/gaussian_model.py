@@ -152,47 +152,26 @@ class GaussianModel:
 
     def create_from_pos_col(self, positions, colors):
         self.spatial_lr_scale = 1
-        colors = np.clip(colors, 0, 1)
-        fused_point_cloud = torch.tensor(np.asarray(positions)).float().cuda()
-        fused_color = RGB2SH(torch.tensor(np.asarray(colors)).float().cuda())
+        fused_point_cloud = positions
+        fused_color = RGB2SH(colors)
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
         features[:, :3, 0 ] = fused_color
         features[:, 3:, 1:] = 0.0 # sh
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
-
-        dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(positions)).float().cuda()), 0.0000001)
+        dist2 = torch.clamp_min(distCUDA2(positions), 0.0000001)
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
 
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
-
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
-        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(False))
-        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(False))
-        self._scaling = nn.Parameter(scales.requires_grad_(False))
-        self._rotation = nn.Parameter(rots.requires_grad_(False))
-        self._opacity = nn.Parameter(opacities.requires_grad_(False))
+        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
+        self._scaling = nn.Parameter(scales.requires_grad_(True))
+        self._rotation = nn.Parameter(rots.requires_grad_(True))
+        self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
-
-
-    def set_attr_from_grid_img(self, attr_name, img):
-        if self.optimizer is not None:
-            raise "Overwriting Gaussians during training not implemented yet! - Consider pruning method implementations"
-
-        attr_shapes = {
-            "_xyz": (3,),
-            "_features_dc": (1, 3),
-            "_features_rest": ((self.max_sh_degree + 1) ** 2 - 1, 3),
-            "_rotation": (4,),
-            "_scaling": (3,),
-            "_opacity": (1,),
-        }
-        img = img.permute(1, 2, 0)
-        target_shape = attr_shapes[attr_name]
-        img = img.reshape(-1, *target_shape)
-        setattr(self, attr_name, img)
 
     def set_color(self, color):
         self._features_dc = color
@@ -201,15 +180,6 @@ class GaussianModel:
         self.percent_dense = training_args.percent_dense
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
-
-        # l = [
-        #     {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
-        #     {'params': [self._features_dc], 'lr': 0, "name": "f_dc"},
-        #     {'params': [self._features_rest], 'lr': 0, "name": "f_rest"}, # training_args.feature_lr / 20.0
-        #     {'params': [self._opacity], 'lr': 0, "name": "opacity"},
-        #     {'params': [self._scaling], 'lr': 0, "name": "scaling"},
-        #     {'params': [self._rotation], 'lr': 0, "name": "rotation"}
-        # ]
 
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
