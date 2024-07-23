@@ -47,11 +47,11 @@ def training(opt, pipe, saving_iterations, eg3d_dir):
             gaussians.oneupSHdegree()
 
         # Render GAN
-        fov_deg = np.random.rand() * 10 + 8
+        fov_deg = np.random.rand() * 8 + 7
         lookat_position = torch.tensor([0, 0, np.random.rand() * 0.1], device="cuda")
         extrinsic = UniformCameraPoseSampler.sample(
-            horizontal_stddev=math.pi/2,
-            vertical_stddev=math.pi/2,
+            horizontal_stddev=math.pi/2 * 0.8,
+            vertical_stddev=math.pi/2 * 0.6,
             radius=2.7,
             device="cuda",
             lookat_position=lookat_position

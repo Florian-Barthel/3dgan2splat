@@ -39,7 +39,7 @@ class SceneEG3D:
         viewpoint = CustomCam(size=size, fov=fov, extr=extrinsic[0])
         c = self.eg3d_model.eg3d_cam(extrinsics=extrinsic, fov=fov)
         w = self.get_w(c)
-        target_image, _planes = self.eg3d_model(w=w, extrinsic=extrinsic, fov=fov)
+        target_image = self.eg3d_model(w=w, extrinsic=extrinsic, fov=fov)
         return viewpoint, target_image
 
     def get_w(self, c):

@@ -9,8 +9,6 @@ import torch.nn.functional as F
 from eg3d_utils.triplane_utils import project_onto_planes, generate_planes
 from torch_utils import persistence
 from training.triplane import TriPlaneGenerator
-from utils.general_utils import inverse_sigmoid
-from utils.sh_utils import RGB2SH
 
 
 @persistence.persistent_class
@@ -32,6 +30,7 @@ class EG3DWithOpacity(nn.Module):
         self.original_generator.rendering_kwargs["ray_start"] = 2.35
         self.original_generator = self.original_generator.eval().requires_grad_(False)
 
+        # TODO: Find out why it is still not the same output
         self.triplane_generator = TriPlaneGenerator(**self.original_generator.init_kwargs).eval().to("cuda")
         self.triplane_generator.backbone = copy.deepcopy(self.original_generator.backbone)
         self.triplane_generator.backbone.mapping = copy.deepcopy(self.original_generator.backbone.mapping)
@@ -40,7 +39,6 @@ class EG3DWithOpacity(nn.Module):
         self.triplane_generator.neural_rendering_resolution = self.original_generator.neural_rendering_resolution
         self.triplane_generator.rendering_kwargs = copy.deepcopy(self.original_generator.rendering_kwargs)
         self.triplane_generator.eval().requires_grad_(False)
-        self.triplane_generator.decoder.requires_grad_()
 
     def eg3d_cam(self, extrinsics, fov, device="cuda"):
         focal_length = 1 / (2 * np.tan(fov / 2))
@@ -55,21 +53,22 @@ class EG3DWithOpacity(nn.Module):
         c = self.eg3d_cam(extrinsic, fov)
         with torch.no_grad():
             if self.last_w is not None and torch.equal(w, self.last_w):
-                eg3d_rendering = self.triplane_generator.synthesis(w, c=c, noise_mode='const', use_cached_backbone=True)
+                eg3d_rendering = self.original_generator.synthesis(w, c=c, noise_mode='const', use_cached_backbone=True)
             else:
-                eg3d_rendering = self.triplane_generator.synthesis(w, c=c, noise_mode='const', cache_backbone=True)
+                eg3d_rendering = self.original_generator.synthesis(w, c=c, noise_mode='const', cache_backbone=True)
                 self.last_w = w
         target_image = (eg3d_rendering["image"][0] + 1) / 2
-        planes = eg3d_rendering["planes"]
-        return target_image, planes
+        return target_image
 
     def get_pos_color_opacity(self, w, extrinsic, fov, num_gaussians_per_axis):
-        eg3d_rendering, planes = self.forward(w=w, extrinsic=extrinsic, fov=fov)
+        c = self.eg3d_cam(extrinsic, fov)
+        eg3d_rendering = self.triplane_generator.synthesis(w, c=c, noise_mode='const', use_cached_backbone=True)
+        planes = eg3d_rendering["planes"]
         triplane = planes.reshape(-1, 3, 32, 256, 256)
         xyz = torch.rand([num_gaussians_per_axis ** 3, 3], device="cuda") - 0.5
         output_features = self.sample_from_planes(triplane, xyz)
         eg3d_features = self.original_generator.decoder(output_features, None)
-        pretrained_color = self.rgb2gaussiancolor(eg3d_features["rgb"])[0, :, :3]
+        pretrained_color = eg3d_features["rgb"][0, :, :3]
         pretrained_opacity = self.sigma2opacity(eg3d_features["sigma"], num_gaussians_per_axis)[0]
         return xyz, pretrained_color, pretrained_opacity
 
@@ -78,11 +77,6 @@ class EG3DWithOpacity(nn.Module):
         sigma = sigma * 1.0 / num_gaussians_per_axis
         alpha = 1 - torch.exp(-sigma)
         return alpha
-
-    def rgb2gaussiancolor(self, rgb):
-        return rgb
-        # return torch.clip(rgb[..., :3], 0, 1)
-        return RGB2SH(rgb[..., :3])
 
     def sample_from_planes(self, plane_features, xyz, mode='nearest', box_warp=1):
         # box_warp = 1 -> bounding box of triplane spans [-0.5, -0.5, -0.5] to [0.5, 0.5, 0.5]
