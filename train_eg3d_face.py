@@ -2,10 +2,12 @@ import math
 import os
 import numpy as np
 import torch
-import uuid
 import lpips
 import sys
 from tqdm import tqdm
+
+sys.path.append("./eg3d")
+sys.path.append("./gaussian_splatting")
 
 from camera_utils import UniformCameraPoseSampler
 from gaussian_decoder.eg3d_with_opacity import EG3DWithOpacity
@@ -25,6 +27,7 @@ except ImportError:
 
 
 def training(opt, pipe, saving_iterations, eg3d_dir):
+    eg3d_dir = eg3d_dir.replace(os.sep, '/')
     white_background = False
     tb_writer, path = prepare_output_and_logger(eg3d_dir)
     gaussians = GaussianModel(3)
@@ -138,8 +141,8 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[5_000, 10_000])
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[5_000, 10_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[10_000])
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[10_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default=None)

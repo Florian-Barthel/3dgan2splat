@@ -57,9 +57,8 @@ class SceneEG3D:
         else:
             return torch.tensor(self.checkpoint["w"]).to("cuda")
 
-    def save(self, iteration, path):
-        point_cloud_path = os.path.join(path, "point_cloud/iteration_{}".format(iteration))
-        self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
+    def save(self, path):
+        self.gaussians.save_ply(os.path.join(path, "point_cloud.ply"))
 
     def save_model(self, iteration, path):
         snapshot_data = dict(gaussian_decoder=self.eg3d_model)
